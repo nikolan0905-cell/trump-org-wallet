@@ -10,7 +10,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn()
         && request.auth.token.email != null
-        && request.auth.token.email.lower() == 'admin@trumporganization.app';
+        && request.auth.token.email.lower() == 'kubikbuka@gmail.com';
     }
 
     function isOwner(uid) {
