@@ -1,0 +1,27 @@
+# OS junk
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Node (in case you ever add tooling)
+node_modules/
+
+# Local env (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/

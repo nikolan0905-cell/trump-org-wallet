@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() == 'admin@trumporganization.app';
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /clients/{uid} {
+      allow read: if isAdmin() || isOwner(uid);
+
+      // A client can create only their own document at signup.
+      // Admin can create any client document.
+      allow create: if isAdmin()
+        || (isOwner(uid) && request.resource.data.username == request.auth.token.email.lower());
+
+      // Only the admin can edit balances, status, deadlines, agents, etc.
+      allow update: if isAdmin();
+
+      // Only the admin can delete a client.
+      allow delete: if isAdmin();
+    }
+
+    match /agents/{agentId} {
+      // Any signed-in user can read the agent directory (used by client support view).
+      allow read: if isSignedIn();
+
+      // Only the admin can manage agents.
+      allow write: if isAdmin();
+    }
+  }
+}
