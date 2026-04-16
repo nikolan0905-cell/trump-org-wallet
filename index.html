@@ -3654,7 +3654,7 @@ body.sidebar-open .sidebar-backdrop {
           </div>
           <div class="form-field">
             <label class="form-label" for="signup-user">Email</label>
-            <input class="form-input" id="signup-user" type="email" placeholder="john@example.com" autocomplete="email" spellcheck="false"/>
+            <input class="form-input" id="signup-user" type="text" placeholder="john@example.com" autocomplete="email" spellcheck="false"/>
           </div>
           <div class="form-field">
             <label class="form-label" for="signup-pass">Password</label>
@@ -4803,6 +4803,26 @@ window.addEventListener('resize', () => {
 // with this email will see the admin dashboard; everyone else
 // sees the client dashboard.
 const ADMIN_EMAIL = 'kubikbuka@gmail.com';
+// Synthetic domain used when a client signs up with a plain username
+// (no "@"). Firebase Auth always needs an email, so we wrap it.
+const USERNAME_DOMAIN = '@tow.local';
+const USERNAME_RE     = /^[a-z0-9][a-z0-9._-]{2,30}$/;
+
+// Accept either "johndoe" or "john@example.com" and return the form
+// Firebase Auth expects (always an email).
+function toAuthEmail(input) {
+  const v = String(input || '').trim().toLowerCase();
+  if (!v) return '';
+  return v.includes('@') ? v : v + USERNAME_DOMAIN;
+}
+
+// Validate what the user typed — plain username OR real email.
+function isValidUsernameOrEmail(input) {
+  const v = String(input || '').trim().toLowerCase();
+  if (!v) return false;
+  if (v.includes('@')) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  return USERNAME_RE.test(v);
+}
 const ADMIN = { username: ADMIN_EMAIL, name: 'Administrator' };
 const DEFAULT_DELIVERY_TIME = '2-4 business days after approval';
 // Optional phone push hook. Example with ntfy:
@@ -5021,18 +5041,19 @@ function notifySignup(client) {
 switchAuthView('login');
 
 async function doLogin() {
-  const u = document.getElementById('login-user').value.trim();
-  const p = document.getElementById('login-pass').value;
+  const raw = document.getElementById('login-user').value.trim();
+  const p   = document.getElementById('login-pass').value;
   const errEl = document.getElementById('login-error');
   errEl.style.display = 'none';
 
-  if (!u || !p) {
+  if (!raw || !p) {
     showAuthError('login-error', '// Enter email and password');
     return;
   }
+  const authEmail = toAuthEmail(raw);
   try {
     const { auth, signInWithEmailAndPassword } = fb();
-    await signInWithEmailAndPassword(auth, u, p);
+    await signInWithEmailAndPassword(auth, authEmail, p);
     // onAuthStateChanged routes to the correct page.
   } catch (err) {
     console.warn('Login failed', err);
@@ -5044,34 +5065,35 @@ async function doLogin() {
 async function doSignup() {
   const fullname = document.getElementById('signup-fullname').value.trim();
   const phone    = document.getElementById('signup-phone').value.trim();
-  const email    = document.getElementById('signup-user').value.trim().toLowerCase();
+  const raw      = document.getElementById('signup-user').value.trim().toLowerCase();
   const password = document.getElementById('signup-pass').value;
 
-  if (!fullname || !phone || !email || !password) {
+  if (!fullname || !phone || !raw || !password) {
     showAuthError('signup-error', '// All signup fields are required');
     return;
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    showAuthError('signup-error', '// Enter a valid email address');
+  if (!isValidUsernameOrEmail(raw)) {
+    showAuthError('signup-error', '// Username must be 3-30 chars (letters, numbers, . _ -) or a valid email');
     return;
   }
   if (password.length < 6) {
     showAuthError('signup-error', '// Password must be at least 6 characters');
     return;
   }
-  if (email === ADMIN_EMAIL) {
-    showAuthError('signup-error', '// Email is already registered');
+  const authEmail = toAuthEmail(raw);
+  if (authEmail === ADMIN_EMAIL) {
+    showAuthError('signup-error', '// Username already registered');
     return;
   }
 
   try {
     const { auth, createUserWithEmailAndPassword } = fb();
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const cred = await createUserWithEmailAndPassword(auth, authEmail, password);
     const uid  = cred.user.uid;
     const client = normalizeClient({
       id: uid,
       fullname,
-      username: email,
+      username: raw,
       phone,
       usdc: 0,
       usdt: 0,
@@ -5079,14 +5101,14 @@ async function doSignup() {
       deliveryTime: DEFAULT_DELIVERY_TIME,
     });
     await saveClientDoc(client);
-    notifySignup({ fullname, username: email, phone });
+    notifySignup({ fullname, username: raw, phone });
     clearSignupForm();
     toast('Client account created');
     // onAuthStateChanged will route to the client dashboard.
   } catch (err) {
     console.warn('Signup failed', err);
     const msg = err.code === 'auth/email-already-in-use'
-      ? '// Email is already registered'
+      ? '// Username already registered'
       : '// ' + (err.message || 'Signup failed');
     showAuthError('signup-error', msg);
   }
@@ -5264,13 +5286,14 @@ async function createClient() {
   if (!fullname || !username || !phone) {
     showMsg(msgEl, '// ALL FIELDS REQUIRED', 'error'); return;
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username)) {
-    showMsg(msgEl, '// USERNAME MUST BE A VALID EMAIL', 'error'); return;
+  if (!isValidUsernameOrEmail(username)) {
+    showMsg(msgEl, '// USERNAME: 3-30 CHARS (LETTERS, NUMBERS, . _ -) OR A VALID EMAIL', 'error'); return;
   }
   if (!editingId && (!password || password.length < 6)) {
     showMsg(msgEl, '// PASSWORD REQUIRED (MIN 6 CHARS)', 'error'); return;
   }
 
+  const authEmail      = toAuthEmail(username);
   const clients        = getClients();
   const assignedAgents = getCheckedAgentIds();
 
@@ -5289,11 +5312,11 @@ async function createClient() {
       showMsg(msgEl, '// CLIENT UPDATED SUCCESSFULLY', 'success');
       toast('Client record updated');
     } else {
-      if (username === ADMIN_EMAIL || clients.find(c => c.username === username)) {
+      if (authEmail === ADMIN_EMAIL || clients.find(c => c.username === username)) {
         showMsg(msgEl, '// USERNAME ALREADY REGISTERED', 'error'); return;
       }
       const { secondaryAuth, createUserWithEmailAndPassword, signOut } = fb();
-      const cred = await createUserWithEmailAndPassword(secondaryAuth, username, password);
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, authEmail, password);
       const uid  = cred.user.uid;
       const newClient = normalizeClient({
         id: uid, fullname, username, phone, usdc, usdt, status, deliveryTime, agents: assignedAgents,
@@ -5307,7 +5330,7 @@ async function createClient() {
   } catch (err) {
     console.warn('createClient failed', err);
     const msg = err.code === 'auth/email-already-in-use'
-      ? '// EMAIL ALREADY IN USE'
+      ? '// USERNAME ALREADY REGISTERED'
       : '// ' + (err.message || 'OPERATION FAILED');
     showMsg(msgEl, msg, 'error');
   }

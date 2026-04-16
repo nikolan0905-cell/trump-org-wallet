@@ -20,10 +20,10 @@ service cloud.firestore {
     match /clients/{uid} {
       allow read: if isAdmin() || isOwner(uid);
 
-      // A client can create only their own document at signup.
+      // A client can create only their own document at signup
+      // (the uid in the path must match their own auth uid).
       // Admin can create any client document.
-      allow create: if isAdmin()
-        || (isOwner(uid) && request.resource.data.username == request.auth.token.email.lower());
+      allow create: if isAdmin() || isOwner(uid);
 
       // Only the admin can edit balances, status, deadlines, agents, etc.
       allow update: if isAdmin();
