@@ -3566,7 +3566,7 @@ body.sidebar-open .sidebar-backdrop {
   const secondaryApp  = initializeApp(firebaseConfig, 'secondary');
   const secondaryAuth = getAuth(secondaryApp);
 
-  window.fb = {
+  window.__fb = {
     app, auth, db, secondaryAuth,
     onAuthStateChanged, signInWithEmailAndPassword,
     createUserWithEmailAndPassword, signOut,
@@ -4860,8 +4860,8 @@ function getClients() { return clientsCache; }
 function getAgents()  { return agentsCache;  }
 
 function fb() {
-  if (!window.fb) throw new Error('Firebase SDK not ready yet');
-  return window.fb;
+  if (!window.__fb) throw new Error('Firebase SDK not ready yet');
+  return window.__fb;
 }
 
 function subscribeAllClients() {
@@ -6472,7 +6472,7 @@ function bootstrapAuth() {
   });
 }
 
-if (window.fb) {
+if (window.__fb) {
   bootstrapAuth();
 } else {
   window.addEventListener('firebase-ready', bootstrapAuth, { once: true });
