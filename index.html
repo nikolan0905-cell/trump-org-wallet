@@ -4907,9 +4907,7 @@ function subscribeAllAgents() {
       }
     }
     if (currentUser?.role === 'client') {
-      if (document.getElementById('view-client-support')?.classList.contains('active')) {
-        renderClientSupport(currentUser);
-      }
+      renderClientSupport(currentUser);
     }
   });
 }
@@ -5394,6 +5392,7 @@ function clientNav(btn) {
     'client-support': 'SUPPORT'
   };
   if (view === 'client-withdraw') wdInitView();
+  if (view === 'client-support')  renderClientSupport(currentUser);
   document.getElementById('client-breadcrumb').textContent = labels[view] || view.toUpperCase();
 }
 
