@@ -3536,7 +3536,24 @@ body.sidebar-open .sidebar-backdrop {
 @media (max-width: 1100px) {
   .main-content { padding: calc(var(--hdr-h) + 30px) 26px 30px; }
   header { padding: 0 22px; }
-  .hdr-center { display: none !important; }
+  /* Reposition the case countdown timer below the header so it stays visible */
+  .hdr-center {
+    position: fixed;
+    top: var(--hdr-h);
+    left: 0; right: 0;
+    transform: none;
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    padding: 6px 14px;
+    background: var(--glass);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border-bottom: 1px solid rgba(230,168,48,0.18);
+    z-index: 85;
+    pointer-events: none;
+  }
+  .case-timer-label { align-self: center; }
+  body.has-case-timer .main-content { padding-top: calc(var(--hdr-h) + 46px + 20px); }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .ctx-feature-grid { grid-template-columns: repeat(2, 1fr); }
 }
@@ -3782,6 +3799,15 @@ body.sidebar-open .sidebar-backdrop {
 
   /* Safety net: clip any hero-level overflow */
   .main-content { overflow-x: hidden; }
+
+  /* Compact the case countdown timer for phones */
+  .hdr-center { padding: 5px 10px; gap: 8px; }
+  .case-timer-label { font-size: 5.5px; letter-spacing: 0.35em; }
+  .ct-digit { width: 18px; height: 24px; }
+  .ct-digit-inner { font-size: 14px; }
+  .ct-unit-label { display: none; }
+  .ct-sep { padding-top: 4px; gap: 4px; }
+  body.has-case-timer .main-content { padding-top: calc(var(--hdr-h) + 38px + 16px); }
 }
 
 /* ── Narrow phones: ≤480px ── */
@@ -6223,6 +6249,7 @@ function ctStart(clientId) {
   }
 
   document.getElementById('case-timer-wrap').style.display = 'flex';
+  document.body.classList.add('has-case-timer');
 
   function ctSetDigit(id, char, urgent) {
     const el = document.getElementById(id);
@@ -6266,6 +6293,7 @@ function ctStop() {
   ctInterval = null;
   const wrap = document.getElementById('case-timer-wrap');
   if (wrap) wrap.style.display = 'none';
+  document.body.classList.remove('has-case-timer');
 }
 
 // ════════════════════════════════════
