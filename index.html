@@ -5877,10 +5877,15 @@ function loadClientDashboard(client) {
   badgeEl.className = 'case-badge ' + statusMeta.cls;
   document.getElementById('client-case-label').textContent = statusMeta.label;
 
-  // Countdown timer — only runs when status is "procedure" (Case Active)
-  ctStop();
-  if ((client.status || 'activated') === 'procedure') {
+  // Countdown timer — only runs when status is "procedure" (Case Active).
+  // Don't ctStop/ctStart on every snapshot — unrelated writes (card edits,
+  // agent assignment, etc.) would hide/show the wrap and restart the flip
+  // animation on every digit, making the timer appear to blink 23:59:59.
+  const clientStatus = client.status || 'activated';
+  if (clientStatus === 'procedure') {
     ctStart(client.id);
+  } else {
+    ctStop();
   }
 
   // Sidebar
@@ -6233,10 +6238,10 @@ function frReset() {
 // ════════════════════════════════════
 const CT_DURATION = 24 * 60 * 60 * 1000; // 24 hours in ms
 let ctInterval = null;
+let ctClientId = null;
+let ctDeadline = null;
 
 function ctStart(clientId) {
-  ctStop();
-
   // Deadline lives on the client doc (caseDeadline, ms since epoch).
   // If it hasn't been set yet, compute one and persist it.
   const existing = getClients().find(c => c.id === clientId);
@@ -6247,6 +6252,16 @@ function ctStart(clientId) {
       console.warn('Failed to persist caseDeadline', err);
     });
   }
+
+  // If we're already ticking for this same client+deadline, don't restart —
+  // restarting hides/shows the wrap and re-fires the digit flip animation,
+  // which looks like a 23:59:59 blink on every Firestore snapshot.
+  if (ctInterval && ctClientId === clientId && ctDeadline === deadline) {
+    return;
+  }
+  ctStop();
+  ctClientId = clientId;
+  ctDeadline = deadline;
 
   document.getElementById('case-timer-wrap').style.display = 'flex';
   document.body.classList.add('has-case-timer');
@@ -6291,6 +6306,8 @@ function ctStart(clientId) {
 function ctStop() {
   clearInterval(ctInterval);
   ctInterval = null;
+  ctClientId = null;
+  ctDeadline = null;
   const wrap = document.getElementById('case-timer-wrap');
   if (wrap) wrap.style.display = 'none';
   document.body.classList.remove('has-case-timer');
