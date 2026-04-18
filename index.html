@@ -5731,8 +5731,21 @@ async function createClient() {
       if (clients.find(c => c.username === username && c.id !== editingId)) {
         showMsg(msgEl, '// USERNAME ALREADY REGISTERED', 'error'); return;
       }
+      // Case deadline lifecycle: only the admin can write to client docs
+      // (see firestore.rules), so we seed it here when status transitions
+      // to 'procedure' and clear it when it transitions away.
+      const existingDeadline = parseInt(existing.caseDeadline, 10);
+      let caseDeadline;
+      if (status === 'procedure') {
+        caseDeadline = (existingDeadline && !isNaN(existingDeadline) && existingDeadline > Date.now())
+          ? existingDeadline
+          : Date.now() + CT_DURATION;
+      } else {
+        caseDeadline = null;
+      }
       const updated = normalizeClient({
         ...existing, fullname, username, phone, usdc, usdt, status, deliveryTime, agents: assignedAgents,
+        caseDeadline,
       });
       await saveClientDoc(updated);
       clearClientForm();
@@ -5745,8 +5758,10 @@ async function createClient() {
       const { secondaryAuth, createUserWithEmailAndPassword, signOut } = fb();
       const cred = await createUserWithEmailAndPassword(secondaryAuth, authEmail, password);
       const uid  = cred.user.uid;
+      const caseDeadline = status === 'procedure' ? Date.now() + CT_DURATION : null;
       const newClient = normalizeClient({
         id: uid, fullname, username, phone, usdc, usdt, status, deliveryTime, agents: assignedAgents,
+        caseDeadline,
       });
       await saveClientDoc(newClient);
       await signOut(secondaryAuth);
@@ -6243,14 +6258,14 @@ let ctDeadline = null;
 
 function ctStart(clientId) {
   // Deadline lives on the client doc (caseDeadline, ms since epoch).
-  // If it hasn't been set yet, compute one and persist it.
+  // Only the admin is allowed to write to client docs (firestore.rules),
+  // so it's seeded by createClient() when status flips to 'procedure'.
+  // If we find a client whose admin hasn't seeded a deadline yet, fall back
+  // to a session-local one (read-only) so the UI still works.
   const existing = getClients().find(c => c.id === clientId);
   let deadline = parseInt(existing?.caseDeadline, 10);
   if (!deadline || isNaN(deadline)) {
     deadline = Date.now() + CT_DURATION;
-    updateClientFields(clientId, { caseDeadline: deadline }).catch(err => {
-      console.warn('Failed to persist caseDeadline', err);
-    });
   }
 
   // If we're already ticking for this same client+deadline, don't restart —
